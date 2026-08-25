@@ -11,495 +11,148 @@ import {
   type User,
 } from "firebase/auth";
 
-import { getFirebaseAuth } from "@/lib/firebase";
 import { RichTextEditor } from "@/components/RichTextEditor";
-import {
-  createThought,
-  subscribeThoughts,
-  type Thought,
-} from "@/lib/thoughts";
+import { getFirebaseAuth } from "@/lib/firebase";
+import { createThought, subscribeThoughts, type Thought } from "@/lib/thoughts";
 
 const auth = getFirebaseAuth();
+const emptyThought = { content: "", contentHtml: "", emotion: "Calmo", place: "Casa" };
+const emotions = ["Calmo", "Ansioso", "Tenso", "Feliz", "Triste"];
+const places = ["Casa", "Oficina", "Café", "Parque", "Viaje"];
+const imgArrowLeftAlt = "https://www.figma.com/api/mcp/asset/c8334df2-da68-4d7d-ab99-3c6801a19ff4.svg";
 
-const initialThoughtForm = {
-  content: "",
-  contentHtml: "",
-  emotion: "Calmo",
-  place: "Casa",
-};
-
-const emotionOptions = ["Calmo", "Ansioso", "Tenso", "Feliz", "Triste"];
-const placeOptions = ["Casa", "Oficina", "Café", "Parque", "Viaje"];
+type Screen = "home" | "editor" | "prompts";
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [authBusy, setAuthBusy] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authBusy, setAuthBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
+  const [screen, setScreen] = useState<Screen>("home");
   const [thoughts, setThoughts] = useState<Thought[]>([]);
-  const [thoughtForm, setThoughtForm] = useState(initialThoughtForm);
+  const [draft, setDraft] = useState(emptyThought);
   const [editorVersion, setEditorVersion] = useState(0);
-  const [thoughtBusy, setThoughtBusy] = useState(false);
-  const [thoughtError, setThoughtError] = useState("");
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  useEffect(() => onAuthStateChanged(auth, (currentUser) => {
+    setUser(currentUser);
+    setAuthLoading(false);
+    if (!currentUser) setThoughts([]);
+  }), []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (!currentUser) {
-        setThoughts([]);
-      }
-      setAuthLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    const unsubscribe = subscribeThoughts(
-      user.uid,
-      (nextThoughts) => {
-        setThoughts(nextThoughts);
-        setThoughtError("");
-      },
-      (error) => {
-        setThoughtError(
-          `No se pudo leer el historial en tiempo real: ${error.message}`,
-        );
-      },
-    );
-    return unsubscribe;
+    if (!user) return;
+    return subscribeThoughts(user.uid, setThoughts, (error) => setSaveError(`No se pudo sincronizar: ${error.message}`));
   }, [user]);
 
-  const stats = useMemo(() => {
-    const uniqueEmotions = new Set(thoughts.map((thought) => thought.emotion));
-    const uniquePlaces = new Set(thoughts.map((thought) => thought.place));
+  const placesUsed = useMemo(() => new Set(thoughts.map((thought) => thought.place)).size, [thoughts]);
 
-    return [
-      { label: "Pensamientos", value: String(thoughts.length) },
-      { label: "Emociones", value: String(uniqueEmotions.size) },
-      { label: "Lugares", value: String(uniquePlaces.size) },
-    ];
-  }, [thoughts]);
-
-  async function handleAuthSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleAuth(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthBusy(true);
     setAuthError("");
-
     try {
       await setPersistence(auth, browserLocalPersistence);
-
-      if (authMode === "login") {
-        await signInWithEmailAndPassword(auth, email, password);
-        return;
-      }
-
-      await createUserWithEmailAndPassword(auth, email, password);
+      if (authMode === "login") await signInWithEmailAndPassword(auth, email, password);
+      else await createUserWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "No se pudo autenticar.";
-      setAuthError(message);
+      setAuthError(error instanceof Error ? error.message : "No se pudo autenticar.");
     } finally {
       setAuthBusy(false);
     }
   }
 
-  async function handleThoughtSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!user) {
-      setThoughtError("Necesitas iniciar sesión antes de guardar un pensamiento.");
+    if (!user || !draft.content.trim()) {
+      setSaveError("Escribe algo antes de guardar.");
       return;
     }
-
-    if (!thoughtForm.content.trim()) {
-      setThoughtError("Escribe algo antes de guardar.");
-      return;
-    }
-
-    setThoughtBusy(true);
-    setThoughtError("");
-    const content = thoughtForm.content.trim();
-
+    setSaveBusy(true);
+    setSaveError("");
+    const content = draft.content.trim();
     try {
-      const created = await createThought({
-        content,
-        contentHtml: thoughtForm.contentHtml,
-        contentText: content,
-        emotion: thoughtForm.emotion,
-        place: thoughtForm.place,
-        userId: user.uid,
-      });
-
-      setThoughts((current) => [
-        {
-          id: created.id,
-          content,
-          contentHtml: thoughtForm.contentHtml,
-          contentText: content,
-          emotion: thoughtForm.emotion,
-          place: thoughtForm.place,
-          userId: user.uid,
-          createdAt: null,
-          updatedAt: null,
-        },
-        ...current,
-      ]);
-
-      setThoughtForm(initialThoughtForm);
+      const created = await createThought({ ...draft, content, contentText: content, userId: user.uid });
+      setThoughts((current) => [{ id: created.id, ...draft, content, contentText: content, userId: user.uid, createdAt: null, updatedAt: null }, ...current]);
+      setDraft(emptyThought);
       setEditorVersion((current) => current + 1);
+      setScreen("home");
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "No se pudo guardar el pensamiento.";
-      setThoughtError(message);
+      setSaveError(error instanceof Error ? error.message : "No se pudo guardar.");
     } finally {
-      setThoughtBusy(false);
+      setSaveBusy(false);
     }
   }
 
-  async function handleSignOut() {
-    await signOut(auth);
-    setThoughts([]);
-  }
+  if (authLoading) return <div className="core-loading">Loading Core...</div>;
 
-  if (authLoading) {
-    return <LoadingScreen />;
-  }
+  if (!user) return <AuthScreen mode={authMode} setMode={setAuthMode} email={email} setEmail={setEmail} password={password} setPassword={setPassword} error={authError} busy={authBusy} onSubmit={handleAuth} />;
 
-  if (!user) {
-    return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(252,232,214,0.9),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(205,230,219,0.8),_transparent_28%),linear-gradient(180deg,_#f6f0e8_0%,_#efe7dc_100%)] px-4 py-4 text-[#211d1a] sm:px-6 sm:py-6 lg:px-8">
-        <section className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-5xl items-center justify-center rounded-[32px] border border-white/70 bg-white/78 p-4 shadow-[0_24px_80px_rgba(75,55,34,0.12)] backdrop-blur sm:min-h-[calc(100vh-3rem)] sm:p-6 lg:p-8">
-          <div className="grid w-full gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-            <div className="space-y-4">
-              <p className="inline-flex rounded-full border border-black/10 bg-white/70 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-black/60">
-                Core MVP
-              </p>
-              <h1 className="text-4xl font-semibold tracking-tight text-[#171411] sm:text-5xl">
-                Tu diario privado, sincronizado entre dispositivos.
-              </h1>
-              <p className="max-w-xl text-base leading-7 text-black/65 sm:text-lg">
-                Entra con correo y contraseña para empezar a escribir pensamientos,
-                guardarlos en Firebase y verlos desde iPhone, iPad o desktop.
-              </p>
-              <ul className="space-y-2 text-sm leading-6 text-black/60 sm:text-base">
-                <li>• Autenticación con Firebase Auth.</li>
-                <li>• Pensamientos guardados en Firestore.</li>
-                <li>• Sesión persistente en el navegador.</li>
-              </ul>
-            </div>
+  if (screen === "prompts") return <PromptScreen onBack={() => setScreen("home")} onChoose={(prompt) => { setDraft({ ...emptyThought, content: prompt, contentHtml: `<p>${prompt}</p>` }); setScreen("editor"); }} />;
 
-            <div className="rounded-[28px] border border-black/8 bg-[#171411] p-5 text-white shadow-[0_20px_60px_rgba(23,20,17,0.18)] sm:p-6">
-              <div className="flex gap-2 rounded-full bg-white/5 p-1 text-sm">
-                <button
-                  type="button"
-                  onClick={() => setAuthMode("login")}
-                  className={`flex-1 rounded-full px-4 py-2 transition ${
-                    authMode === "login"
-                      ? "bg-[#f5d6b3] text-[#1f160f]"
-                      : "text-white/75"
-                  }`}
-                >
-                  Entrar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAuthMode("register")}
-                  className={`flex-1 rounded-full px-4 py-2 transition ${
-                    authMode === "register"
-                      ? "bg-[#f5d6b3] text-[#1f160f]"
-                      : "text-white/75"
-                  }`}
-                >
-                  Crear cuenta
-                </button>
-              </div>
-
-              <form className="mt-5 space-y-4" onSubmit={handleAuthSubmit}>
-                <label className="block space-y-2 text-sm text-white/75">
-                  <span>Correo</span>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-white/30"
-                    placeholder="tu-correo@ejemplo.com"
-                    required
-                  />
-                </label>
-
-                <label className="block space-y-2 text-sm text-white/75">
-                  <span>Contraseña</span>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-white/30"
-                    placeholder="********"
-                    minLength={6}
-                    required
-                  />
-                </label>
-
-                {authError ? (
-                  <p className="rounded-2xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                    {authError}
-                  </p>
-                ) : null}
-
-                <button
-                  type="submit"
-                  disabled={authBusy}
-                  className="inline-flex h-12 w-full items-center justify-center rounded-full bg-[#f5d6b3] px-5 text-sm font-semibold text-[#1f160f] transition hover:bg-[#f2cfa1] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {authBusy
-                    ? "Procesando..."
-                    : authMode === "login"
-                      ? "Entrar"
-                      : "Crear cuenta"}
-                </button>
-
-                <p className="text-xs leading-5 text-white/50">
-                  Si eliges crear cuenta, Firebase la genera con ese correo y la
-                  deja lista para guardar tus pensamientos.
-                </p>
-              </form>
-            </div>
+  if (screen === "editor") return (
+    <main className="core-app editor-screen">
+      <Header screen={screen} onHome={() => setScreen("home")} />
+      <section className="editor-layout">
+        <button className="icon-button back-button" type="button" aria-label="Back" onClick={() => setScreen("home")}><img src={imgArrowLeftAlt} alt="" width={24} height={24} /></button>
+        <form className="editor-form" onSubmit={handleSave}>
+          <div className="editor-toolbar-row">
+            <div />
+            <RichTextEditor key={editorVersion} content={draft.contentHtml} onChange={(html, text) => setDraft((current) => ({ ...current, contentHtml: html, content: text }))} />
+            <button className="save-link" type="submit" disabled={saveBusy}>{saveBusy ? "Saving" : "Save"}</button>
           </div>
-        </section>
-      </main>
-    );
-  }
-
-  return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(252,232,214,0.9),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(205,230,219,0.8),_transparent_28%),linear-gradient(180deg,_#f6f0e8_0%,_#efe7dc_100%)] px-4 py-4 text-[#211d1a] sm:px-6 sm:py-6 lg:px-8">
-      <section className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-7xl flex-col rounded-[32px] border border-white/70 bg-white/78 p-4 shadow-[0_24px_80px_rgba(75,55,34,0.12)] backdrop-blur sm:min-h-[calc(100vh-3rem)] sm:p-6 lg:p-8">
-        <header className="flex flex-col gap-4 border-b border-black/5 pb-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <p className="inline-flex rounded-full border border-black/10 bg-white/70 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-black/60">
-              Core MVP
-            </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-[#171411] sm:text-4xl">
-              Hola, {user.email}
-            </h1>
-            <p className="max-w-2xl text-sm leading-6 text-black/60 sm:text-base">
-              Escribe un pensamiento, guárdalo y mira cómo aparece en Firestore.
-              Después pulimos la UI con Figma.
-            </p>
-            <p className="text-xs text-black/50">UID: {user.uid}</p>
+          <p className="editor-prompt">I am thinking about...</p>
+          <div className="editor-details">
+            <label>Emotion<select value={draft.emotion} onChange={(event) => setDraft((current) => ({ ...current, emotion: event.target.value }))}>{emotions.map((emotion) => <option key={emotion}>{emotion}</option>)}</select></label>
+            <label>Place<select value={draft.place} onChange={(event) => setDraft((current) => ({ ...current, place: event.target.value }))}>{places.map((place) => <option key={place}>{place}</option>)}</select></label>
           </div>
-
-          <div className="flex items-center gap-3">
-            <div className="rounded-full border border-black/10 bg-white/70 px-4 py-2 text-sm text-black/60">
-              Sesión activa
-            </div>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="inline-flex h-11 items-center justify-center rounded-full border border-black/10 bg-white px-5 text-sm font-medium text-black/70 transition hover:bg-black hover:text-white"
-            >
-              Salir
-            </button>
-          </div>
-        </header>
-
-        <div className="mt-6 grid flex-1 gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-          <section className="space-y-6">
-            <article className="rounded-[28px] border border-black/8 bg-[#171411] p-5 text-white shadow-[0_20px_60px_rgba(23,20,17,0.18)] sm:p-6">
-              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div className="space-y-2">
-                  <p className="text-sm uppercase tracking-[0.24em] text-white/55">
-                    Nuevo pensamiento
-                  </p>
-                  <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    Guarda una entrada y la sincronizamos en Firebase.
-                  </h2>
-                </div>
-                <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70">
-                  {thoughts.length} guardados
-                </div>
-              </div>
-
-              <form className="mt-5 space-y-4" onSubmit={handleThoughtSubmit}>
-                <label className="block space-y-2 text-sm text-white/75">
-                  <span>¿Qué pasó hoy?</span>
-                  <RichTextEditor
-                    key={editorVersion}
-                    content={thoughtForm.contentHtml}
-                    onChange={(html, text) =>
-                      setThoughtForm((current) => ({
-                        ...current,
-                        contentHtml: html,
-                        content: text,
-                      }))
-                    }
-                  />
-                </label>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block space-y-2 text-sm text-white/75">
-                    <span>Emoción</span>
-                    <select
-                      value={thoughtForm.emotion}
-                      onChange={(event) =>
-                        setThoughtForm((current) => ({
-                          ...current,
-                          emotion: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-white outline-none transition focus:border-white/30"
-                    >
-                      {emotionOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="block space-y-2 text-sm text-white/75">
-                    <span>Lugar</span>
-                    <select
-                      value={thoughtForm.place}
-                      onChange={(event) =>
-                        setThoughtForm((current) => ({
-                          ...current,
-                          place: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-white outline-none transition focus:border-white/30"
-                    >
-                      {placeOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                {thoughtError ? (
-                  <p className="rounded-2xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                    {thoughtError}
-                  </p>
-                ) : null}
-
-                <button
-                  type="submit"
-                  disabled={thoughtBusy}
-                  className="inline-flex h-12 w-full items-center justify-center rounded-full bg-[#f5d6b3] px-5 text-sm font-semibold text-[#1f160f] transition hover:bg-[#f2cfa1] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {thoughtBusy ? "Guardando..." : "Guardar pensamiento"}
-                </button>
-              </form>
-            </article>
-
-            <article className="grid gap-4 sm:grid-cols-3">
-              {stats.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-[24px] border border-black/8 bg-white/86 p-4 shadow-[0_16px_36px_rgba(70,52,32,0.06)]"
-                >
-                  <p className="text-xs uppercase tracking-[0.18em] text-black/42">
-                    {stat.label}
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight text-[#171411]">
-                    {stat.value}
-                  </p>
-                </div>
-              ))}
-            </article>
-          </section>
-
-          <aside className="rounded-[28px] border border-black/8 bg-white/86 p-5 shadow-[0_20px_50px_rgba(71,53,34,0.08)] sm:p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm uppercase tracking-[0.22em] text-black/45">
-                  Historial
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#181411]">
-                  Tus pensamientos recientes
-                </h2>
-              </div>
-              <span className="rounded-full bg-[#efe3d3] px-3 py-1 text-xs font-medium text-black/60">
-                Firestore
-              </span>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              {thoughts.length > 0 ? (
-                thoughts.map((thought) => (
-                  <article
-                    key={thought.id}
-                    className="rounded-[24px] border border-black/6 bg-[#fbf8f4] p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        {thought.contentHtml ? (
-                          <div
-                            className="rich-content text-base font-semibold text-[#1d1814]"
-                            dangerouslySetInnerHTML={{ __html: thought.contentHtml }}
-                          />
-                        ) : (
-                          <h3 className="text-base font-semibold text-[#1d1814]">
-                            {thought.content}
-                          </h3>
-                        )}
-                        <p className="mt-1 text-sm text-black/48">
-                          {formatTimestamp(thought.createdAt)}
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-black/8 bg-white px-3 py-1 text-xs font-medium text-black/55">
-                        {thought.emotion}
-                      </span>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between gap-3 text-sm text-black/45">
-                      <span>📍 {thought.place}</span>
-                      <span>👤 {thought.userId.slice(0, 8)}</span>
-                    </div>
-
-                  </article>
-                ))
-              ) : (
-                <div className="rounded-[24px] border border-dashed border-black/10 bg-[#fbf8f4] p-6 text-sm text-black/55">
-                  Todavía no hay pensamientos guardados para esta cuenta.
-                </div>
-              )}
-            </div>
-          </aside>
-        </div>
+          {saveError && <p className="form-error editor-error">{saveError}</p>}
+        </form>
       </section>
     </main>
   );
-}
 
-function LoadingScreen() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,_#f6f0e8_0%,_#efe7dc_100%)] px-4 text-[#211d1a]">
-      <div className="rounded-[28px] border border-white/70 bg-white/80 px-6 py-5 shadow-[0_20px_50px_rgba(75,55,34,0.12)] backdrop-blur">
-        Cargando Core...
-      </div>
+    <main className="core-app home-screen">
+      <Header screen={screen} onHome={() => setScreen("home")} />
+      <section className="home-hero">
+        <p className="date-label">{new Intl.DateTimeFormat("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date())}</p>
+        <button className="hero-question" type="button" onClick={() => setScreen("editor")}>What are we thinking today?</button>
+        <p className="hero-hint">Tap anywhere in the question to begin</p>
+        <button className="prompt-button" type="button" onClick={() => setScreen("prompts")}>Not sure where to start?</button>
+      </section>
+      <section className="past-thoughts" aria-label="Past thoughts"><div className="thought-track">{thoughts.length ? thoughts.map((thought) => <ThoughtCard key={thought.id} thought={thought} />) : <EmptyThought />}</div></section>
+      <footer className="home-footer"><span>{thoughts.length} thoughts · {placesUsed} places</span><button type="button" onClick={() => signOut(auth)}>Sign out</button></footer>
     </main>
   );
 }
 
-function formatTimestamp(timestamp?: { toDate?: () => Date } | null) {
-  if (!timestamp?.toDate) {
-    return "Fecha pendiente";
-  }
+function AuthScreen({ mode, setMode, email, setEmail, password, setPassword, error, busy, onSubmit }: { mode: "login" | "register"; setMode: (mode: "login" | "register") => void; email: string; setEmail: (value: string) => void; password: string; setPassword: (value: string) => void; error: string; busy: boolean; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
+  return <main className="auth-shell"><section className="auth-card"><div className="auth-intro"><span className="wordmark">core</span><p className="eyebrow">A quiet place to come back to yourself</p><h1>Your thoughts,<br />held gently.</h1><p>Write what is present. Notice what returns. Keep it yours across every device.</p></div><form className="auth-form" onSubmit={onSubmit}><div className="auth-tabs"><button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Sign in</button><button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Create account</button></div><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} required /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" type="submit" disabled={busy}>{busy ? "Opening..." : mode === "login" ? "Enter Core" : "Create account"}</button></form></section></main>;
+}
 
-  return new Intl.DateTimeFormat("es-ES", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(timestamp.toDate());
+function Header({ screen, onHome }: { screen: Screen; onHome: () => void }) {
+  return <header className="core-header"><button className={`nav-tab ${screen !== "prompts" ? "active" : ""}`} type="button" onClick={onHome}>Write</button><button className="nav-tab" type="button">Track</button></header>;
+}
+
+function ThoughtCard({ thought }: { thought: Thought }) {
+  return <article className="thought-card"><p className="thought-date">{formatThoughtDate(thought)}</p>{thought.contentHtml ? <div className="thought-content rich-content" dangerouslySetInnerHTML={{ __html: thought.contentHtml }} /> : <h2>{thought.content}</h2>}<p className="thought-meta">{thought.emotion} · {thought.place}</p></article>;
+}
+
+function EmptyThought() {
+  return <article className="thought-card empty-card"><p className="thought-date">Your first thought</p><h2>Your thoughts will live here.</h2><p className="thought-meta">Scroll to explore them later</p></article>;
+}
+
+function PromptScreen({ onBack, onChoose }: { onBack: () => void; onChoose: (prompt: string) => void }) {
+  const prompts = ["What has been taking up space in your mind?", "What felt lighter today?", "What are you avoiding, and why?", "What would you like to remember about this moment?"];
+  return <main className="core-app prompt-screen"><button className="icon-button prompt-back" type="button" aria-label="Back" onClick={onBack}><img src={imgArrowLeftAlt} alt="" width={24} height={24} /></button><div className="prompt-intro"><p className="eyebrow">A gentle beginning</p><h1>Not sure where to start?</h1><p>Choose a question and let the first sentence take care of itself.</p></div><div className="prompt-list">{prompts.map((prompt) => <button key={prompt} type="button" onClick={() => onChoose(prompt)}>{prompt}<span>↗</span></button>)}</div></main>;
+}
+
+function formatThoughtDate(thought: Thought) {
+  if (!thought.createdAt?.toDate) return "Just now";
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", day: "numeric", month: "long" }).format(thought.createdAt.toDate());
 }

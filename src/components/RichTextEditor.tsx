@@ -1,7 +1,12 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
+import Underline from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
+import type { ReactNode } from "react";
+
+const imgList = "https://www.figma.com/api/mcp/asset/ac8a8070-44b1-4cb1-a031-3793c4c0e58e.svg";
+const imgListOrdered = "https://www.figma.com/api/mcp/asset/febe8e0c-6806-4f23-8ce0-229402669413.svg";
 
 type RichTextEditorProps = {
   content: string;
@@ -10,13 +15,12 @@ type RichTextEditorProps = {
 
 export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [StarterKit, Underline],
     content,
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class:
-          "min-h-40 rounded-b-[20px] bg-black/20 px-4 py-3 text-sm leading-7 text-white outline-none",
+        class: "rich-editor-content",
       },
     },
     onUpdate: ({ editor: updatedEditor }) => {
@@ -25,12 +29,12 @@ export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
   });
 
   if (!editor) {
-    return <div className="min-h-40 rounded-[20px] bg-black/20" />;
+    return <div className="rich-editor" />;
   }
 
   return (
-    <div className="overflow-hidden rounded-[20px] border border-white/10">
-      <div className="flex flex-wrap gap-2 border-b border-white/10 bg-white/6 p-3">
+    <div className="rich-editor">
+      <div className="rich-editor-toolbar">
         <ToolbarButton
           active={editor.isActive("bold")}
           label="B"
@@ -42,19 +46,23 @@ export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
           onClick={() => editor.chain().focus().toggleItalic().run()}
         />
         <ToolbarButton
+          active={editor.isActive("underline")}
+          label="U"
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+        />
+        <span className="divider" />
+        <ToolbarButton
           active={editor.isActive("bulletList")}
-          label="• Lista"
+          label={<img src={imgList} alt="Bullet list" width={16} height={16} />}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
         />
         <ToolbarButton
           active={editor.isActive("orderedList")}
-          label="1. Lista"
+          label={<img src={imgListOrdered} alt="Numbered list" width={16} height={16} />}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
         />
-        <ToolbarButton
-          label="Limpiar"
-          onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
-        />
+        <span className="divider" />
+        <span className="font-size">16px⌄</span>
       </div>
       <EditorContent editor={editor} />
     </div>
@@ -67,18 +75,14 @@ function ToolbarButton({
   onClick,
 }: {
   active?: boolean;
-  label: string;
+  label: ReactNode;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
-        active
-          ? "border-[#f5d6b3] bg-[#f5d6b3] text-[#1f160f]"
-          : "border-white/10 bg-white/5 text-white/75 hover:bg-white/10"
-      }`}
+      className={active ? "is-active" : ""}
     >
       {label}
     </button>
