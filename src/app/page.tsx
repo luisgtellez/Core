@@ -37,6 +37,7 @@ export default function Home() {
   const [editorVersion, setEditorVersion] = useState(0);
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [hasScrolled, setHasScrolled] = useState(false);
 
   useEffect(() => onAuthStateChanged(auth, (currentUser) => {
     setUser(currentUser);
@@ -48,6 +49,15 @@ export default function Home() {
     if (!user) return;
     return subscribeThoughts(user.uid, setThoughts, (error) => setSaveError(`No se pudo sincronizar: ${error.message}`));
   }, [user]);
+
+  useEffect(() => {
+    if (screen !== "home") return;
+
+    const handleScroll = () => setHasScrolled(window.scrollY > 24);
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [screen]);
 
   const placesUsed = useMemo(() => new Set(thoughts.map((thought) => thought.place)).size, [thoughts]);
 
@@ -119,13 +129,14 @@ export default function Home() {
   return (
     <main className="core-app home-screen">
       <Header screen={screen} onHome={() => setScreen("home")} />
-      <section className="home-hero">
+      <section className="home-hero" onClick={() => setScreen("editor")}>
         <p className="date-label">{new Intl.DateTimeFormat("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date())}</p>
-        <button className="hero-question" type="button" onClick={() => setScreen("editor")}>What are we thinking today?</button>
+        <button className="hero-question" type="button">What are we thinking today?</button>
         <p className="hero-hint">Tap anywhere in the question to begin</p>
-        <button className="prompt-button" type="button" onClick={() => setScreen("prompts")}>Not sure where to start?</button>
+        <button className="prompt-button" type="button" onClick={(event) => { event.stopPropagation(); setScreen("prompts"); }}>Not sure where to start?</button>
       </section>
       <section className="past-thoughts" aria-label="Past thoughts"><div className="thought-track">{thoughts.length ? thoughts.map((thought) => <ThoughtCard key={thought.id} thought={thought} />) : <EmptyThought />}</div></section>
+      {!hasScrolled && <div className="thoughts-overlay" aria-hidden="true" />}
       <footer className="home-footer"><span>{thoughts.length} thoughts · {placesUsed} places</span><button type="button" onClick={() => signOut(auth)}>Sign out</button></footer>
     </main>
   );
