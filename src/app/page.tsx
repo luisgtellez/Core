@@ -12,6 +12,7 @@ import {
 } from "firebase/auth";
 
 import { getFirebaseAuth } from "@/lib/firebase";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   createThought,
   subscribeThoughts,
@@ -22,6 +23,7 @@ const auth = getFirebaseAuth();
 
 const initialThoughtForm = {
   content: "",
+  contentHtml: "",
   emotion: "Calmo",
   place: "Casa",
 };
@@ -39,6 +41,7 @@ export default function Home() {
   const [authError, setAuthError] = useState("");
   const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [thoughtForm, setThoughtForm] = useState(initialThoughtForm);
+  const [editorVersion, setEditorVersion] = useState(0);
   const [thoughtBusy, setThoughtBusy] = useState(false);
   const [thoughtError, setThoughtError] = useState("");
 
@@ -128,6 +131,8 @@ export default function Home() {
     try {
       const created = await createThought({
         content,
+        contentHtml: thoughtForm.contentHtml,
+        contentText: content,
         emotion: thoughtForm.emotion,
         place: thoughtForm.place,
         userId: user.uid,
@@ -137,6 +142,8 @@ export default function Home() {
         {
           id: created.id,
           content,
+          contentHtml: thoughtForm.contentHtml,
+          contentText: content,
           emotion: thoughtForm.emotion,
           place: thoughtForm.place,
           userId: user.uid,
@@ -147,6 +154,7 @@ export default function Home() {
       ]);
 
       setThoughtForm(initialThoughtForm);
+      setEditorVersion((current) => current + 1);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "No se pudo guardar el pensamiento.";
@@ -322,18 +330,16 @@ export default function Home() {
               <form className="mt-5 space-y-4" onSubmit={handleThoughtSubmit}>
                 <label className="block space-y-2 text-sm text-white/75">
                   <span>¿Qué pasó hoy?</span>
-                  <textarea
-                    value={thoughtForm.content}
-                    onChange={(event) =>
+                  <RichTextEditor
+                    key={editorVersion}
+                    content={thoughtForm.contentHtml}
+                    onChange={(html, text) =>
                       setThoughtForm((current) => ({
                         ...current,
-                        content: event.target.value,
+                        contentHtml: html,
+                        content: text,
                       }))
                     }
-                    rows={5}
-                    className="w-full resize-none rounded-[24px] border border-white/10 bg-white/6 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-white/30"
-                    placeholder="Escribe lo que estás pensando..."
-                    required
                   />
                 </label>
 
@@ -436,9 +442,16 @@ export default function Home() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="text-base font-semibold text-[#1d1814]">
-                          {thought.content}
-                        </h3>
+                        {thought.contentHtml ? (
+                          <div
+                            className="rich-content text-base font-semibold text-[#1d1814]"
+                            dangerouslySetInnerHTML={{ __html: thought.contentHtml }}
+                          />
+                        ) : (
+                          <h3 className="text-base font-semibold text-[#1d1814]">
+                            {thought.content}
+                          </h3>
+                        )}
                         <p className="mt-1 text-sm text-black/48">
                           {formatTimestamp(thought.createdAt)}
                         </p>
@@ -452,6 +465,7 @@ export default function Home() {
                       <span>📍 {thought.place}</span>
                       <span>👤 {thought.userId.slice(0, 8)}</span>
                     </div>
+
                   </article>
                 ))
               ) : (

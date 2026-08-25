@@ -34,3 +34,21 @@ body {
 body {
   margin: 0;
 }
+
+.rich-content p {
+  margin: 0;
+}
+
+.rich-content ul,
+.rich-content ol {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.rich-content ul {
+  list-style: disc;
+}
+
+.rich-content ol {
+  list-style: decimal;
+}

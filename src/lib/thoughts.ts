@@ -15,6 +15,8 @@ import { getFirebaseDb } from "@/lib/firebase";
 
 export type ThoughtRecord = {
   content: string;
+  contentHtml?: string;
+  contentText?: string;
   emotion: string;
   place: string;
   userId: string;
@@ -28,6 +30,8 @@ export type Thought = ThoughtRecord & {
 
 export type ThoughtInput = {
   content: string;
+  contentHtml?: string;
+  contentText?: string;
   emotion: string;
   place: string;
   userId: string;
