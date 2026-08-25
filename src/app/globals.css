@@ -87,6 +87,8 @@ button { cursor: pointer; }
 .empty-card { opacity: .72; }
 .home-footer { display: flex; justify-content: space-between; padding: 17px 24px; color: var(--muted); font-size: 12px; }
 .home-footer button { border: 0; background: transparent; color: var(--muted); }
+.is-opening-editor .home-hero { animation: hero-lift .42s ease forwards; }
+.is-opening-editor .past-thoughts { animation: thoughts-drop .42s ease forwards; }
 
 .editor-screen { display: flex; flex-direction: column; }
 .editor-layout { flex: 1; min-height: calc(100vh - 76px); position: relative; padding: 0 17%; animation: editor-enter .7s ease both; }
@@ -166,3 +168,5 @@ button { cursor: pointer; }
 @keyframes editor-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes toolbar-drop { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes prompt-rise { from { opacity: 0; transform: translateY(-22px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes hero-lift { to { opacity: 0; transform: translateY(-48px); } }
+@keyframes thoughts-drop { to { opacity: 0; transform: translateY(48px); } }

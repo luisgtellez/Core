@@ -38,6 +38,7 @@ export default function Home() {
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [hasScrolled, setHasScrolled] = useState(false);
+  const [isOpeningEditor, setIsOpeningEditor] = useState(false);
 
   useEffect(() => onAuthStateChanged(auth, (currentUser) => {
     setUser(currentUser);
@@ -98,6 +99,11 @@ export default function Home() {
     }
   }
 
+  function openEditor() {
+    setIsOpeningEditor(true);
+    window.setTimeout(() => setScreen("editor"), 420);
+  }
+
   if (authLoading) return <div className="core-loading">Loading Core...</div>;
 
   if (!user) return <AuthScreen mode={authMode} setMode={setAuthMode} email={email} setEmail={setEmail} password={password} setPassword={setPassword} error={authError} busy={authBusy} onSubmit={handleAuth} />;
@@ -127,9 +133,9 @@ export default function Home() {
   );
 
   return (
-    <main className="core-app home-screen">
+    <main className={`core-app home-screen ${isOpeningEditor ? "is-opening-editor" : ""}`}>
       <Header screen={screen} onHome={() => setScreen("home")} />
-      <section className="home-hero" onClick={() => setScreen("editor")}>
+      <section className="home-hero" onClick={openEditor}>
         <p className="date-label">{new Intl.DateTimeFormat("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date())}</p>
         <button className="hero-question" type="button">What are we thinking today?</button>
         <p className="hero-hint">Tap anywhere in the question to begin</p>
