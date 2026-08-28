@@ -1,88 +1,102 @@
 "use client";
 
-import { useEditor, EditorContent } from "@tiptap/react";
-import Underline from "@tiptap/extension-underline";
+import { createContext, useContext, type ReactNode } from "react";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
-import type { ReactNode } from "react";
+import Underline from "@tiptap/extension-underline";
 
 const imgList = "https://www.figma.com/api/mcp/asset/ac8a8070-44b1-4cb1-a031-3793c4c0e58e.svg";
 const imgListOrdered = "https://www.figma.com/api/mcp/asset/febe8e0c-6806-4f23-8ce0-229402669413.svg";
 
-type RichTextEditorProps = {
+const EditorContext = createContext<Editor | null>(null);
+
+type RichEditorProviderProps = {
   content: string;
   onChange: (html: string, text: string) => void;
+  placeholder?: string;
+  children: ReactNode;
 };
 
-export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
+export function RichEditorProvider({
+  content,
+  onChange,
+  placeholder = "I am thinking about...",
+  children,
+}: RichEditorProviderProps) {
   const editor = useEditor({
-    extensions: [StarterKit, Underline],
+    extensions: [
+      StarterKit,
+      Underline,
+      Placeholder.configure({ placeholder }),
+    ],
     content,
     immediatelyRender: false,
     editorProps: {
-      attributes: {
-        class: "rich-editor-content",
-      },
+      attributes: { class: "rich-editor-content" },
     },
-    onUpdate: ({ editor: updatedEditor }) => {
-      onChange(updatedEditor.getHTML(), updatedEditor.getText());
+    onUpdate: ({ editor: updated }) => {
+      onChange(updated.getHTML(), updated.getText());
     },
   });
 
-  if (!editor) {
-    return <div className="rich-editor" />;
-  }
+  return <EditorContext.Provider value={editor}>{children}</EditorContext.Provider>;
+}
 
+export function RichEditorToolbar() {
+  const editor = useContext(EditorContext);
+  if (!editor) return <div className="rich-toolbar" aria-hidden="true" />;
   return (
-    <div className="rich-editor">
-      <div className="rich-editor-toolbar">
-        <ToolbarButton
-          active={editor.isActive("bold")}
-          label="B"
-          onClick={() => editor.chain().focus().toggleBold().run()}
-        />
-        <ToolbarButton
-          active={editor.isActive("italic")}
-          label="I"
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-        />
-        <ToolbarButton
-          active={editor.isActive("underline")}
-          label="U"
-          onClick={() => editor.chain().focus().toggleUnderline().run()}
-        />
-        <span className="divider" />
-        <ToolbarButton
-          active={editor.isActive("bulletList")}
-          label={<img src={imgList} alt="Bullet list" width={16} height={16} />}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-        />
-        <ToolbarButton
-          active={editor.isActive("orderedList")}
-          label={<img src={imgListOrdered} alt="Numbered list" width={16} height={16} />}
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        />
-        <span className="divider" />
-        <span className="font-size">16px⌄</span>
-      </div>
+    <div className="rich-toolbar" role="toolbar" aria-label="Formatting">
+      <ToolbarButton label="B" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()} />
+      <ToolbarButton label="I" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()} />
+      <ToolbarButton label="U" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()} />
+      <span className="divider" aria-hidden="true" />
+      <ToolbarButton
+        label={<img src={imgList} alt="" width={16} height={16} />}
+        ariaLabel="Bullet list"
+        active={editor.isActive("bulletList")}
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+      />
+      <ToolbarButton
+        label={<img src={imgListOrdered} alt="" width={16} height={16} />}
+        ariaLabel="Numbered list"
+        active={editor.isActive("orderedList")}
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+      />
+      <span className="divider" aria-hidden="true" />
+      <span className="font-size" aria-hidden="true">16px⌄</span>
+    </div>
+  );
+}
+
+export function RichEditorSurface() {
+  const editor = useContext(EditorContext);
+  if (!editor) return <div className="rich-editor-surface" />;
+  return (
+    <div className="rich-editor-surface" onClick={() => editor.chain().focus().run()}>
       <EditorContent editor={editor} />
     </div>
   );
 }
 
 function ToolbarButton({
-  active = false,
   label,
+  ariaLabel,
+  active = false,
   onClick,
 }: {
-  active?: boolean;
   label: ReactNode;
+  ariaLabel?: string;
+  active?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      aria-label={ariaLabel}
       className={active ? "is-active" : ""}
+      onClick={onClick}
     >
       {label}
     </button>
