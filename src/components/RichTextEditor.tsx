@@ -5,9 +5,7 @@ import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
-
-const imgList = "https://www.figma.com/api/mcp/asset/ac8a8070-44b1-4cb1-a031-3793c4c0e58e.svg";
-const imgListOrdered = "https://www.figma.com/api/mcp/asset/febe8e0c-6806-4f23-8ce0-229402669413.svg";
+import { List, ListOrdered } from "lucide-react";
 
 const EditorContext = createContext<Editor | null>(null);
 
@@ -53,13 +51,13 @@ export function RichEditorToolbar() {
       <ToolbarButton label="U" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()} />
       <span className="divider" aria-hidden="true" />
       <ToolbarButton
-        label={<img src={imgList} alt="" width={16} height={16} />}
+        label={<List size={16} />}
         ariaLabel="Bullet list"
         active={editor.isActive("bulletList")}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
       />
       <ToolbarButton
-        label={<img src={imgListOrdered} alt="" width={16} height={16} />}
+        label={<ListOrdered size={16} />}
         ariaLabel="Numbered list"
         active={editor.isActive("orderedList")}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
