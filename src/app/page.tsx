@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
@@ -18,12 +18,22 @@ import {
 } from "@/components/RichTextEditor";
 import { getFirebaseAuth } from "@/lib/firebase";
 import { createThought, subscribeThoughts, type Thought } from "@/lib/thoughts";
+import { Plus } from "lucide-react";
 
 const auth = getFirebaseAuth();
-const emotions = ["Serenidad", "Alegría", "Tristeza", "Enojo", "Angustia", "Envidia", "Ansiedad"];
-const places = ["Casa", "Oficina", "Café", "Parque", "Viaje"];
+const emotions = ["Serenity", "Joy", "Sadness", "Anger", "Anguish", "Envy", "Anxiety"];
+const places = ["Home", "Office", "Café", "Park", "Travel"];
 const emptyDraft = { content: "", contentHtml: "", emotion: "Serenidad", place: "Casa" };
 const emotionStyle: Record<string, { bg: string; border: string; textColor: string }> = {
+  // English (new)
+  Joy:      { bg: "#FAF9F3", border: "rgba(216,206,154,0.2)", textColor: "#8C8664" },
+  Sadness:  { bg: "#F9F3F2", border: "rgba(207,157,146,0.2)", textColor: "#87665F" },
+  Anger:    { bg: "#F4F6F6", border: "rgba(163,177,184,0.2)", textColor: "#6A7378" },
+  Anguish:  { bg: "#F4F1F5", border: "rgba(163,141,173,0.2)", textColor: "#6A5C70" },
+  Envy:     { bg: "#F4F6F4", border: "rgba(165,179,161,0.2)", textColor: "#6B7469" },
+  Anxiety:  { bg: "#F9F6F9", border: "rgba(203,181,205,0.2)", textColor: "#847685" },
+  Serenity: { bg: "#FAF6F3", border: "rgba(212,182,158,0.2)", textColor: "#8A7667" },
+  // Spanish (legacy)
   Alegría:   { bg: "#FAF9F3", border: "rgba(216,206,154,0.2)", textColor: "#8C8664" },
   Tristeza:  { bg: "#F9F3F2", border: "rgba(207,157,146,0.2)", textColor: "#87665F" },
   Enojo:     { bg: "#F4F6F6", border: "rgba(163,177,184,0.2)", textColor: "#6A7378" },
@@ -31,7 +41,6 @@ const emotionStyle: Record<string, { bg: string; border: string; textColor: stri
   Envidia:   { bg: "#F4F6F4", border: "rgba(165,179,161,0.2)", textColor: "#6B7469" },
   Ansiedad:  { bg: "#F9F6F9", border: "rgba(203,181,205,0.2)", textColor: "#847685" },
   Serenidad: { bg: "#FAF6F3", border: "rgba(212,182,158,0.2)", textColor: "#8A7667" },
-  // Legacy names for existing thoughts
   Calmo:    { bg: "#F4F6F4", border: "rgba(165,179,161,0.2)", textColor: "#6B7469" },
   Ansioso:  { bg: "#F9F6F9", border: "rgba(203,181,205,0.2)", textColor: "#847685" },
   Tenso:    { bg: "#F4F6F6", border: "rgba(163,177,184,0.2)", textColor: "#6A7378" },
@@ -39,7 +48,38 @@ const emotionStyle: Record<string, { bg: string; border: string; textColor: stri
   Triste:   { bg: "#F9F3F2", border: "rgba(207,157,146,0.2)", textColor: "#87665F" },
 };
 const fallbackEmotionStyle = { bg: "#FAF6F3", border: "rgba(212,182,158,0.2)", textColor: "#8A7667" };
-const imgArrowLeftAlt = "https://www.figma.com/api/mcp/asset/c8334df2-da68-4d7d-ab99-3c6801a19ff4.svg";
+
+const emotionAccentColors: Record<string, string> = {
+  // English (new) - Stronger, more saturated colors for Track screen
+  Joy:      "#D8CE9A",
+  Sadness:  "#CF9D92",
+  Anger:    "#A3B1B8",
+  Anguish:  "#A38DAD",
+  Envy:     "#A5B3A1",
+  Anxiety:  "#CBB5CD",
+  Serenity: "#D4B69E",
+  // Spanish (legacy)
+  Alegría:   "#D8CE9A",
+  Tristeza:  "#CF9D92",
+  Enojo:     "#A3B1B8",
+  Angustia:  "#A38DAD",
+  Envidia:   "#A5B3A1",
+  Ansiedad:  "#CBB5CD",
+  Serenidad: "#D4B69E",
+  Calmo:    "#A5B3A1",
+  Ansioso:  "#CBB5CD",
+  Tenso:    "#A3B1B8",
+  Feliz:    "#D8CE9A",
+  Triste:   "#CF9D92",
+};
+const fallbackAccentColor = "#D4B69E";
+function BackArrow() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5" />
+    </svg>
+  );
+}
 const heroQuestions = [
   "What are we thinking today?",
   "What is on your mind now?",
@@ -56,7 +96,7 @@ function formatToday() {
   }).format(new Date());
 }
 
-type Screen = "home" | "editor" | "prompts" | "reading";
+type Screen = "home" | "editor" | "prompts" | "reading" | "track";
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -80,6 +120,10 @@ export default function Home() {
   const [heroText, setHeroText] = useState(heroQuestions[0]);
   const [filterEmotion, setFilterEmotion] = useState<string | null>(null);
   const [filterSort, setFilterSort] = useState<"newest" | "oldest">("newest");
+  const [showFilters, setShowFilters] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const thoughtTrackRef = useRef<HTMLDivElement>(null);
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
 
   useEffect(() => onAuthStateChanged(auth, (currentUser) => {
     setUser(currentUser);
@@ -93,6 +137,24 @@ export default function Home() {
       setSaveError(`No se pudo sincronizar: ${error.message}`),
     );
   }, [user]);
+
+  useEffect(() => {
+    if (screen !== "home") return;
+    const check = () => {
+      const track = thoughtTrackRef.current;
+      if (track) {
+        const headerH = window.innerWidth <= 640 ? 64 : 76;
+        setShowFilters(track.getBoundingClientRect().top <= headerH);
+      }
+    };
+    check();
+    window.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("resize", check, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+    };
+  }, [screen]);
 
   useEffect(() => {
     if (screen !== "home") return;
@@ -278,10 +340,20 @@ export default function Home() {
   if (screen === "reading" && activeThought)
     return <ReadingScreen thought={activeThought} onBack={backToHome} />;
 
+  if (screen === "track")
+    return (
+      <TrackScreen
+        thoughts={thoughts}
+        selectedMonth={selectedMonth}
+        onMonthChange={setSelectedMonth}
+        onBack={() => setScreen("home")}
+      />
+    );
+
   if (screen === "editor")
     return (
       <main className="core-app editor-screen">
-        <Header screen={screen} onHome={backToHome} />
+        <Header screen={screen} onHome={backToHome} onTrack={() => setScreen("track")} />
         <section className="editor-layout">
           <RichEditorProvider
             key={editorVersion}
@@ -297,7 +369,7 @@ export default function Home() {
                 aria-label="Back"
                 onClick={backToHome}
               >
-                <img src={imgArrowLeftAlt} alt="" width={24} height={24} />
+                <BackArrow />
               </button>
               <div className="editor-toolbar-wrap">
                 <RichEditorToolbar />
@@ -337,7 +409,7 @@ export default function Home() {
     <main
       className={`core-app home-screen ${isOpeningEditor ? "is-opening-editor" : ""}`}
     >
-      <Header screen={screen} onHome={backToHome} />
+      <Header screen={screen} onHome={backToHome} onTrack={() => setScreen("track")} />
       <section className="home-hero" onClick={openEditor}>
         <p className="date-label">{today}</p>
         <div className="hero-question-wrap">
@@ -345,7 +417,7 @@ export default function Home() {
             {heroText}<span className="hero-cursor" aria-hidden="true" />
           </button>
         </div>
-        <p className="hero-hint">Tap anywhere in the question to begin</p>
+        <p className="hero-hint">Tap anywhere on the screen to write</p>
         <button
           className="prompt-button"
           type="button"
@@ -358,16 +430,17 @@ export default function Home() {
         </button>
       </section>
       <section className="past-thoughts" aria-label="Past thoughts">
+
         {thoughts.length >= 4 && (
           <FilterBar
-            usedEmotions={usedEmotions}
+            visible={showFilters}
             activeEmotion={filterEmotion}
             sort={filterSort}
-            onEmotion={setFilterEmotion}
+            onOpenFilter={() => setIsFilterOpen(true)}
             onSort={setFilterSort}
           />
         )}
-        <div className="thought-track">
+        <div className="thought-track" ref={thoughtTrackRef}>
           {filteredThoughts.length ? (
             filteredThoughts.map((thought) => (
               <ThoughtCard
@@ -382,6 +455,19 @@ export default function Home() {
         </div>
       </section>
       {!hasScrolled && <div className="thoughts-overlay" aria-hidden="true" />}
+      {isFilterOpen && (
+        <FilterSheet
+          usedEmotions={usedEmotions}
+          activeEmotion={filterEmotion}
+          onEmotion={setFilterEmotion}
+          onClose={() => setIsFilterOpen(false)}
+        />
+      )}
+      {showFilters && (
+        <button className="fab" type="button" aria-label="New thought" onClick={openEditor}>
+          <Plus size={22} strokeWidth={2} />
+        </button>
+      )}
       <footer className="home-footer">
         <span>
           {thoughts.length} thoughts · {placesUsed} places
@@ -476,17 +562,21 @@ function AuthScreen({
   );
 }
 
-function Header({ screen, onHome }: { screen: Screen; onHome: () => void }) {
+function Header({ screen, onHome, onTrack }: { screen: Screen; onHome: () => void; onTrack: () => void }) {
   return (
     <header className="core-header">
       <button
-        className={`nav-tab ${screen !== "prompts" ? "active" : ""}`}
+        className={`nav-tab ${screen === "home" || screen === "editor" || screen === "prompts" || screen === "reading" ? "active" : ""}`}
         type="button"
         onClick={onHome}
       >
         Write
       </button>
-      <button className="nav-tab" type="button">
+      <button
+        className={`nav-tab ${screen === "track" ? "active" : ""}`}
+        type="button"
+        onClick={onTrack}
+      >
         Track
       </button>
     </header>
@@ -519,40 +609,38 @@ function ThoughtCard({ thought, onOpen }: { thought: Thought; onOpen: () => void
   );
 }
 
+function FilterIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+      <line x1="1" y1="3.5" x2="12" y2="3.5" />
+      <line x1="3" y1="6.5" x2="10" y2="6.5" />
+      <line x1="5" y1="9.5" x2="8" y2="9.5" />
+    </svg>
+  );
+}
+
 function FilterBar({
-  usedEmotions,
+  visible,
   activeEmotion,
   sort,
-  onEmotion,
+  onOpenFilter,
   onSort,
 }: {
-  usedEmotions: string[];
+  visible: boolean;
   activeEmotion: string | null;
   sort: "newest" | "oldest";
-  onEmotion: (e: string | null) => void;
+  onOpenFilter: () => void;
   onSort: (s: "newest" | "oldest") => void;
 }) {
   return (
-    <div className="filter-bar">
-      <div className="filter-emotions">
-        <button
-          type="button"
-          className={`badge ${activeEmotion === null ? "is-active" : ""}`}
-          onClick={() => onEmotion(null)}
-        >
-          All
-        </button>
-        {usedEmotions.map((emotion) => (
-          <button
-            key={emotion}
-            type="button"
-            className={`badge ${activeEmotion === emotion ? "is-active" : ""}`}
-            onClick={() => onEmotion(activeEmotion === emotion ? null : emotion)}
-          >
-            {emotion}
-          </button>
-        ))}
-      </div>
+    <div className={`filter-bar${visible ? " is-visible" : ""}`}>
+      <button
+        type="button"
+        className={`filter-trigger${activeEmotion ? " has-filter" : ""}`}
+        onClick={onOpenFilter}
+      >
+        {activeEmotion ?? "Filter"} <FilterIcon />
+      </button>
       <button
         type="button"
         className="filter-sort"
@@ -560,6 +648,51 @@ function FilterBar({
       >
         {sort === "newest" ? "Newest ↓" : "Oldest ↑"}
       </button>
+    </div>
+  );
+}
+
+function FilterSheet({
+  usedEmotions,
+  activeEmotion,
+  onEmotion,
+  onClose,
+}: {
+  usedEmotions: string[];
+  activeEmotion: string | null;
+  onEmotion: (e: string | null) => void;
+  onClose: () => void;
+}) {
+  function pick(emotion: string | null) {
+    onEmotion(emotion === activeEmotion ? null : emotion);
+    onClose();
+  }
+  return (
+    <div className="confirm-overlay" role="dialog" aria-modal="true">
+      <div className="confirm-sheet">
+        <button className="confirm-close" type="button" aria-label="Close" onClick={onClose}>×</button>
+        <p className="eyebrow">Filter thoughts</p>
+        <h2>How were you feeling?</h2>
+        <div className="badge-row">
+          <button
+            type="button"
+            className={`badge ${activeEmotion === null ? "is-active" : ""}`}
+            onClick={() => pick(null)}
+          >
+            All
+          </button>
+          {usedEmotions.map((emotion) => (
+            <button
+              key={emotion}
+              type="button"
+              className={`badge ${activeEmotion === emotion ? "is-active" : ""}`}
+              onClick={() => pick(emotion)}
+            >
+              {emotion}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -575,9 +708,13 @@ function EmptyThought() {
 }
 
 function ReadingScreen({ thought, onBack }: { thought: Thought; onBack: () => void }) {
+  const es = emotionStyle[thought.emotion] ?? fallbackEmotionStyle;
   return (
-    <main className="core-app reading-screen">
-      <Header screen="home" onHome={onBack} />
+    <main
+      className="core-app reading-screen"
+      style={{ "--screen-bg": es.bg } as React.CSSProperties}
+    >
+      <Header screen="home" onHome={onBack} onTrack={() => {}} />
       <section className="reading-layout">
         <button
           className="icon-button back-button"
@@ -585,7 +722,7 @@ function ReadingScreen({ thought, onBack }: { thought: Thought; onBack: () => vo
           aria-label="Back"
           onClick={onBack}
         >
-          <img src={imgArrowLeftAlt} alt="" width={24} height={24} />
+          <BackArrow />
         </button>
         <div className="reading-body">
           <p className="reading-date">{formatThoughtDate(thought)}</p>
@@ -627,7 +764,7 @@ function PromptScreen({
         aria-label="Back"
         onClick={onBack}
       >
-        <img src={imgArrowLeftAlt} alt="" width={24} height={24} />
+        <BackArrow />
       </button>
       <div className="prompt-intro">
         <p className="eyebrow">A gentle beginning</p>
@@ -710,6 +847,254 @@ function ConfirmSheet({
         >
           {saveBusy ? "Saving..." : "Save thought"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function TrackScreen({
+  thoughts,
+  selectedMonth,
+  onMonthChange,
+  onBack,
+}: {
+  thoughts: Thought[];
+  selectedMonth: Date;
+  onMonthChange: (date: Date) => void;
+  onBack: () => void;
+}) {
+  const streak = calculateStreak(thoughts);
+  const monthsWithEntries = getMonthsWithEntries(thoughts);
+  const selectedMonthThoughts = thoughts.filter((t) => {
+    if (!t.createdAt?.toDate) return false;
+    const d = t.createdAt.toDate();
+    return d.getMonth() === selectedMonth.getMonth() && d.getFullYear() === selectedMonth.getFullYear();
+  });
+  const emotionBalance = calculateEmotionBalance(selectedMonthThoughts);
+  const calendar = generateCalendar(selectedMonth, thoughts);
+  const currentMonthIndex = monthsWithEntries.findIndex(
+    (m) => m.getMonth() === selectedMonth.getMonth() && m.getFullYear() === selectedMonth.getFullYear(),
+  );
+  const canGoPrev = currentMonthIndex < monthsWithEntries.length - 1;
+  const canGoNext = currentMonthIndex > 0;
+
+  return (
+    <main className="core-app track-screen">
+      <Header screen="track" onHome={onBack} onTrack={() => {}} />
+      <div className="track-content">
+        <StreakBanner streak={streak} />
+        <MonthSelector
+          month={selectedMonth}
+          onPrev={canGoPrev ? () => onMonthChange(monthsWithEntries[currentMonthIndex + 1]) : undefined}
+          onNext={canGoNext ? () => onMonthChange(monthsWithEntries[currentMonthIndex - 1]) : undefined}
+        />
+        <div className="track-grid">
+          <DailyEmotionsCard calendar={calendar} />
+          <EmotionalBalanceCard balance={emotionBalance} />
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function calculateStreak(thoughts: Thought[]): number {
+  if (!thoughts.length) return 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dayMap = new Map<string, boolean>();
+  thoughts.forEach((t) => {
+    if (!t.createdAt?.toDate) return;
+    const d = t.createdAt.toDate();
+    d.setHours(0, 0, 0, 0);
+    dayMap.set(d.toISOString(), true);
+  });
+  let streak = 0;
+  let checkDate = new Date(today);
+  while (dayMap.has(checkDate.toISOString())) {
+    streak++;
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+  return streak;
+}
+
+function getMonthsWithEntries(thoughts: Thought[]): Date[] {
+  const monthSet = new Set<string>();
+  thoughts.forEach((t) => {
+    if (!t.createdAt?.toDate) return;
+    const d = t.createdAt.toDate();
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    monthSet.add(key);
+  });
+  return Array.from(monthSet)
+    .map((key) => {
+      const [year, month] = key.split("-").map(Number);
+      return new Date(year, month, 1);
+    })
+    .sort((a, b) => b.getTime() - a.getTime());
+}
+
+function calculateEmotionBalance(thoughts: Thought[]): Array<{ emotion: string; count: number; percentage: number }> {
+  if (!thoughts.length) return [];
+  const emotionCounts: Record<string, number> = {};
+  thoughts.forEach((t) => {
+    emotionCounts[t.emotion] = (emotionCounts[t.emotion] || 0) + 1;
+  });
+  const total = thoughts.length;
+  return Object.entries(emotionCounts)
+    .map(([emotion, count]) => ({
+      emotion,
+      count,
+      percentage: Math.round((count / total) * 100),
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+type CalendarDay = {
+  date: Date;
+  dayNumber: number;
+  emotion?: string;
+  hasEntry: boolean;
+  isToday: boolean;
+};
+
+function generateCalendar(month: Date, thoughts: Thought[]): CalendarDay[] {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const firstDay = new Date(year, monthIndex, 1);
+  const lastDay = new Date(year, monthIndex + 1, 0);
+  const startDayOfWeek = firstDay.getDay();
+  const daysInMonth = lastDay.getDate();
+  const calendar: CalendarDay[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dayMap = new Map<string, string>();
+  thoughts.forEach((t) => {
+    if (!t.createdAt?.toDate) return;
+    const d = t.createdAt.toDate();
+    if (d.getMonth() === monthIndex && d.getFullYear() === year) {
+      const key = d.getDate().toString();
+      if (!dayMap.has(key)) dayMap.set(key, t.emotion);
+    }
+  });
+  for (let i = 0; i < startDayOfWeek; i++) {
+    const date = new Date(year, monthIndex, 1 - (startDayOfWeek - i));
+    calendar.push({
+      date,
+      dayNumber: date.getDate(),
+      hasEntry: false,
+      isToday: false,
+    });
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, monthIndex, day);
+    const emotion = dayMap.get(day.toString());
+    calendar.push({
+      date,
+      dayNumber: day,
+      emotion,
+      hasEntry: !!emotion,
+      isToday: date.getTime() === today.getTime(),
+    });
+  }
+  return calendar;
+}
+
+function StreakBanner({ streak }: { streak: number }) {
+  const message = streak > 0 ? "You're keeping your mind calm!" : "Start a new streak today!";
+  const badge = streak > 0 ? "Active" : null;
+  return (
+    <div className="streak-banner">
+      <div className="streak-icon">🔥</div>
+      <div className="streak-info">
+        <h2 className="streak-count">{streak} Days Streak</h2>
+        <p className="streak-message">{message}</p>
+      </div>
+      {badge && <span className="streak-badge">{badge}</span>}
+    </div>
+  );
+}
+
+function MonthSelector({
+  month,
+  onPrev,
+  onNext,
+}: {
+  month: Date;
+  onPrev?: () => void;
+  onNext?: () => void;
+}) {
+  const monthName = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(month);
+  return (
+    <div className="month-selector">
+      <button type="button" className="month-arrow" onClick={onPrev} disabled={!onPrev} aria-label="Previous month">
+        ←
+      </button>
+      <h2 className="month-label">{monthName}</h2>
+      <button type="button" className="month-arrow" onClick={onNext} disabled={!onNext} aria-label="Next month">
+        →
+      </button>
+    </div>
+  );
+}
+
+function DailyEmotionsCard({ calendar }: { calendar: CalendarDay[] }) {
+  const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  return (
+    <div className="track-card">
+      <h3 className="track-card-title">Daily Emotions</h3>
+      <div className="calendar-grid">
+        {weekDays.map((day) => (
+          <div key={day} className="calendar-day-label">
+            {day}
+          </div>
+        ))}
+        {calendar.map((day, i) => (
+          <CalendarDayCircle key={i} day={day} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CalendarDayCircle({ day }: { day: CalendarDay }) {
+  const accentColor = day.emotion ? emotionAccentColors[day.emotion] ?? fallbackAccentColor : null;
+  const bgColor = day.hasEntry && accentColor ? accentColor : day.hasEntry ? "#E8E6E3" : "#F5F4F2";
+  const className = `calendar-day ${day.isToday ? "is-today" : ""} ${!day.hasEntry ? "no-entry" : ""}`;
+  return (
+    <div className={className} style={{ background: bgColor }}>
+      <span>{day.dayNumber}</span>
+    </div>
+  );
+}
+
+function EmotionalBalanceCard({ balance }: { balance: Array<{ emotion: string; percentage: number }> }) {
+  const total = balance.reduce((sum, b) => sum + b.percentage, 0);
+  return (
+    <div className="track-card">
+      <h3 className="track-card-title">Emotional Balance</h3>
+      <div className="balance-bar">
+        {balance.map((b) => {
+          const accentColor = emotionAccentColors[b.emotion] ?? fallbackAccentColor;
+          return (
+            <div
+              key={b.emotion}
+              className="balance-segment"
+              style={{ width: `${(b.percentage / total) * 100}%`, background: accentColor }}
+            />
+          );
+        })}
+      </div>
+      <div className="balance-legend">
+        {balance.map((b) => {
+          const accentColor = emotionAccentColors[b.emotion] ?? fallbackAccentColor;
+          return (
+            <div key={b.emotion} className="balance-item">
+              <div className="balance-dot" style={{ background: accentColor }} />
+              <span className="balance-emotion">{b.emotion}</span>
+              <span className="balance-percentage">{b.percentage}%</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
