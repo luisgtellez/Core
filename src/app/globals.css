@@ -200,36 +200,28 @@ button { cursor: pointer; background: transparent; border: 0; }
 .home-footer button { color: var(--muted); }
 
 /* Editor */
-.editor-screen { 
-  display: flex; 
-  flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-}
+.editor-screen { display: flex; flex-direction: column; }
 .editor-screen .core-header {
-  position: relative;
-  flex-shrink: 0;
+  position: sticky;
+  top: 0;
   z-index: 20;
+  background: var(--paper);
 }
 .editor-top {
-  position: relative;
-  flex-shrink: 0;
+  position: sticky;
+  top: 64px;
   z-index: 19;
   background: var(--paper);
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 24px;
-  padding: 20px 8% 20px;
+  padding: 12px 8% 20px;
   animation: toolbar-drop .55s ease both;
 }
 .editor-layout {
   position: relative;
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0 8% 80px;
+  padding: 8px 8% 80px;
   animation: editor-enter .6s ease both;
 }
 .editor-toolbar-wrap { display: flex; justify-content: center; }
