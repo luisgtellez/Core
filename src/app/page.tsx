@@ -418,41 +418,41 @@ export default function Home() {
     return (
       <main className="core-app editor-screen">
         <Header screen={screen} onHome={backToHome} onTrack={openTrack} />
-        <section className="editor-layout">
-          <RichEditorProvider
-            key={editorVersion}
-            content={draft.contentHtml}
-            onChange={(html, text) =>
-              setDraft((current) => ({ ...current, contentHtml: html, content: text }))
-            }
-          >
-            <div className="editor-top">
-              <button
-                className="icon-button back-button"
-                type="button"
-                aria-label="Back"
-                onClick={backToHome}
-              >
-                <BackArrow />
-              </button>
-              <div className="editor-toolbar-wrap">
-                <RichEditorToolbar />
-              </div>
-              <button
-                className="save-link"
-                type="button"
-                onClick={requestSave}
-                disabled={saveBusy}
-              >
-                Save
-              </button>
+        <RichEditorProvider
+          key={editorVersion}
+          content={draft.contentHtml}
+          onChange={(html, text) =>
+            setDraft((current) => ({ ...current, contentHtml: html, content: text }))
+          }
+        >
+          <div className="editor-top">
+            <button
+              className="icon-button back-button"
+              type="button"
+              aria-label="Back"
+              onClick={backToHome}
+            >
+              <BackArrow />
+            </button>
+            <div className="editor-toolbar-wrap">
+              <RichEditorToolbar />
             </div>
+            <button
+              className="save-link"
+              type="button"
+              onClick={requestSave}
+              disabled={saveBusy}
+            >
+              Save
+            </button>
+          </div>
+          <section className="editor-layout">
             <RichEditorSurface />
-          </RichEditorProvider>
-          {saveError && !isConfirming && (
-            <p className="form-error editor-error">{saveError}</p>
-          )}
-        </section>
+            {saveError && !isConfirming && (
+              <p className="form-error editor-error">{saveError}</p>
+            )}
+          </section>
+        </RichEditorProvider>
         {isConfirming && (
           <ConfirmSheet
             draft={draft}
