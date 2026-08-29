@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
@@ -111,6 +111,18 @@ function formatToday() {
     month: "long",
     year: "numeric",
   }).format(new Date());
+}
+
+function scrollToPageTop() {
+  const root = document.documentElement;
+  const previousBehavior = root.style.scrollBehavior;
+  root.style.scrollBehavior = "auto";
+  window.scrollTo(0, 0);
+  root.scrollTop = 0;
+  document.body.scrollTop = 0;
+  window.requestAnimationFrame(() => {
+    root.style.scrollBehavior = previousBehavior;
+  });
 }
 
 type Screen = "home" | "editor" | "prompts" | "reading" | "track";
@@ -334,6 +346,7 @@ export default function Home() {
   }
 
   function openThought(thought: Thought) {
+    scrollToPageTop();
     setActiveThought(thought);
     setScreen("reading");
   }
@@ -471,6 +484,7 @@ export default function Home() {
           <FilterBar
             visible={showFilters}
             activeEmotion={filterEmotion}
+            activeDateCount={filterDates.length}
             sort={filterSort}
             onOpenFilter={() => setIsFilterOpen(true)}
             onSort={setFilterSort}
@@ -661,12 +675,14 @@ function FilterIcon() {
 function FilterBar({
   visible,
   activeEmotion,
+  activeDateCount,
   sort,
   onOpenFilter,
   onSort,
 }: {
   visible: boolean;
   activeEmotion: string | null;
+  activeDateCount: number;
   sort: "newest" | "oldest";
   onOpenFilter: () => void;
   onSort: (s: "newest" | "oldest") => void;
@@ -675,10 +691,10 @@ function FilterBar({
     <div className={`filter-bar${visible ? " is-visible" : ""}`}>
       <button
         type="button"
-        className={`filter-trigger${activeEmotion ? " has-filter" : ""}`}
+        className={`filter-trigger${activeEmotion || activeDateCount ? " has-filter" : ""}`}
         onClick={onOpenFilter}
       >
-        {activeEmotion ?? "Filter"} <FilterIcon />
+        {activeEmotion ?? (activeDateCount ? `${activeDateCount} date${activeDateCount === 1 ? "" : "s"}` : "Filter")} <FilterIcon />
       </button>
       <button
         type="button"
@@ -689,6 +705,23 @@ function FilterBar({
       </button>
     </div>
   );
+}
+
+function buildFilterCalendar(month: Date) {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const firstDayOffset = (new Date(year, monthIndex, 1).getDay() + 6) % 7;
+  const startDate = new Date(year, monthIndex, 1 - firstDayOffset);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
+    return {
+      date,
+      dateKey: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
+      isCurrentMonth: date.getMonth() === monthIndex,
+    };
+  });
 }
 
 function FilterSheet({
@@ -708,6 +741,17 @@ function FilterSheet({
   onDatesChange: (dates: string[]) => void;
   onClose: () => void;
 }) {
+  const availableDateSet = useMemo(() => new Set(availableDates), [availableDates]);
+  const availableMonths = useMemo(
+    () => Array.from(new Set(availableDates.map((date) => date.slice(0, 7)))).sort(),
+    [availableDates],
+  );
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const initial = availableDates[0] ?? new Date().toISOString().slice(0, 7);
+    const [year, month] = initial.split("-").map(Number);
+    return new Date(year, month - 1, 1);
+  });
+
   function pick(emotion: string | null) {
     onEmotion(emotion === activeEmotion ? null : emotion);
   }
@@ -724,10 +768,15 @@ function FilterSheet({
     onDatesChange([]);
   }
   
-  function formatDate(dateStr: string) {
-    const [year, month, day] = dateStr.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+  const calendarMonthKey = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, "0")}`;
+  const calendarMonthIndex = availableMonths.indexOf(calendarMonthKey);
+  const canShowPreviousMonth = calendarMonthIndex > 0;
+  const canShowNextMonth = calendarMonthIndex >= 0 && calendarMonthIndex < availableMonths.length - 1;
+  const calendarDays = buildFilterCalendar(calendarMonth);
+
+  function showMonth(monthKey: string) {
+    const [year, month] = monthKey.split("-").map(Number);
+    setCalendarMonth(new Date(year, month - 1, 1));
   }
   
   return (
@@ -758,16 +807,43 @@ function FilterSheet({
         
         {availableDates.length > 0 && (
           <>
-            <h2 className="filter-section-title">Select dates</h2>
-            <div className="date-filter-grid">
-              {availableDates.map((dateStr) => (
+            <div className="filter-calendar-heading">
+              <h2 className="filter-section-title">Which days matter?</h2>
+              <div className="filter-calendar-nav">
                 <button
-                  key={dateStr}
                   type="button"
-                  className={`date-badge ${selectedDates.includes(dateStr) ? "is-active" : ""}`}
-                  onClick={() => toggleDate(dateStr)}
+                  onClick={() => showMonth(availableMonths[calendarMonthIndex - 1])}
+                  disabled={!canShowPreviousMonth}
+                  aria-label="Previous month"
                 >
-                  {formatDate(dateStr)}
+                  <LeftArrow />
+                </button>
+                <span>{new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(calendarMonth)}</span>
+                <button
+                  type="button"
+                  onClick={() => showMonth(availableMonths[calendarMonthIndex + 1])}
+                  disabled={!canShowNextMonth}
+                  aria-label="Next month"
+                >
+                  <RightArrow />
+                </button>
+              </div>
+            </div>
+            <div className="filter-calendar" role="grid" aria-label="Choose dates with thoughts">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+                <span key={day} className="filter-calendar-weekday" role="columnheader">{day}</span>
+              ))}
+              {calendarDays.map(({ date, dateKey, isCurrentMonth }) => (
+                <button
+                  key={dateKey}
+                  type="button"
+                  className={`filter-calendar-day${selectedDates.includes(dateKey) ? " is-active" : ""}`}
+                  onClick={() => toggleDate(dateKey)}
+                  disabled={!isCurrentMonth || !availableDateSet.has(dateKey)}
+                  aria-pressed={selectedDates.includes(dateKey)}
+                  aria-label={new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(date)}
+                >
+                  {isCurrentMonth ? date.getDate() : ""}
                 </button>
               ))}
             </div>
@@ -795,10 +871,10 @@ function EmptyThought() {
 
 function ReadingScreen({ thought, onBack }: { thought: Thought; onBack: () => void }) {
   const es = emotionStyle[thought.emotion] ?? fallbackEmotionStyle;
-  
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+
+  useLayoutEffect(() => {
+    scrollToPageTop();
+  }, [thought.id]);
   
   return (
     <main
@@ -1000,7 +1076,7 @@ function calculateStreak(thoughts: Thought[]): number {
     dayMap.set(d.toISOString(), true);
   });
   let streak = 0;
-  let checkDate = new Date(today);
+  const checkDate = new Date(today);
   while (dayMap.has(checkDate.toISOString())) {
     streak++;
     checkDate.setDate(checkDate.getDate() - 1);
