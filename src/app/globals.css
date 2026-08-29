@@ -200,31 +200,37 @@ button { cursor: pointer; background: transparent; border: 0; }
 .home-footer button { color: var(--muted); }
 
 /* Editor */
-.editor-screen { display: flex; flex-direction: column; }
-.editor-screen .core-header {
-  position: fixed;
-  top: 0;
-  right: 0;
-  left: 0;
+.editor-screen { 
+  display: flex; 
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
-.editor-layout {
+.editor-screen .core-header {
   position: relative;
-  padding: 152px 8% 80px;
-  animation: editor-enter .6s ease both;
+  flex-shrink: 0;
+  z-index: 20;
 }
 .editor-top {
-  position: fixed;
-  top: 76px;
-  right: 8%;
-  left: 8%;
+  position: relative;
+  flex-shrink: 0;
   z-index: 19;
   background: var(--paper);
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 24px;
-  padding: 8px 0 20px;
+  padding: 20px 8% 20px;
   animation: toolbar-drop .55s ease both;
+}
+.editor-layout {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 8% 80px;
+  animation: editor-enter .6s ease both;
 }
 .editor-toolbar-wrap { display: flex; justify-content: center; }
 .icon-button {
@@ -592,14 +598,11 @@ button { cursor: pointer; background: transparent; border: 0; }
   .thought-track { grid-template-columns: 1fr; }
   .editor-layout, .reading-layout, .prompt-screen { padding-left: 20px; padding-right: 20px; }
   .reading-layout .back-button, .prompt-back { left: 20px; }
-  .editor-screen .editor-layout { padding-top: 140px; }
+  .editor-screen .editor-layout { padding-left: 20px; padding-right: 20px; }
   .editor-screen .editor-top {
-    top: 64px;
-    right: 20px;
-    left: 20px;
+    padding: 12px 20px 12px;
     grid-template-columns: 44px 1fr 66px;
     gap: 8px;
-    padding-bottom: 12px;
   }
   .save-link { padding: 8px 14px; font-size: 17px; }
   .rich-toolbar { padding: 6px 8px; gap: 4px; }
