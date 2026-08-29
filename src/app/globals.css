@@ -370,6 +370,46 @@ button { cursor: pointer; background: transparent; border: 0; }
   color: #fff;
   border-color: var(--ink);
 }
+
+/* Date filter */
+.filter-sheet { max-height: 85vh; overflow-y: auto; }
+.filter-section-title {
+  font-family: Georgia, serif;
+  font-size: 18px;
+  margin: 24px 0 12px;
+}
+.date-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.date-badge {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  background: #fff;
+  text-align: left;
+}
+.date-badge:hover { border-color: var(--accent); color: var(--ink); }
+.date-badge.is-active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.clear-dates-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--paper-warm);
+  color: var(--ink-soft);
+  font-size: 13px;
+  border: 1px solid var(--line);
+}
+.clear-dates-btn:hover { border-color: var(--accent); color: var(--ink); }
+
 .confirm-save { margin-top: 24px; width: 100%; }
 
 .primary-button {

@@ -80,6 +80,23 @@ function BackArrow() {
     </svg>
   );
 }
+
+function LeftArrow() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5" />
+    </svg>
+  );
+}
+
+function RightArrow() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7.5 4.5 13 10l-5.5 5.5" />
+    </svg>
+  );
+}
+
 const heroQuestions = [
   "What are we thinking today?",
   "What is on your mind now?",
@@ -119,6 +136,7 @@ export default function Home() {
   const [today, setToday] = useState(formatToday);
   const [heroText, setHeroText] = useState(heroQuestions[0]);
   const [filterEmotion, setFilterEmotion] = useState<string | null>(null);
+  const [filterDates, setFilterDates] = useState<string[]>([]);
   const [filterSort, setFilterSort] = useState<"newest" | "oldest">("newest");
   const [showFilters, setShowFilters] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -225,12 +243,30 @@ export default function Home() {
     [thoughts],
   );
 
+  const availableDates = useMemo(() => {
+    const dates = new Set<string>();
+    thoughts.forEach((t) => {
+      if (!t.createdAt?.toDate) return;
+      const d = t.createdAt.toDate();
+      dates.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    });
+    return Array.from(dates).sort((a, b) => b.localeCompare(a));
+  }, [thoughts]);
+
   const filteredThoughts = useMemo(() => {
     let result = [...thoughts];
     if (filterEmotion) result = result.filter((t) => t.emotion === filterEmotion);
+    if (filterDates.length > 0) {
+      result = result.filter((t) => {
+        if (!t.createdAt?.toDate) return false;
+        const thoughtDate = t.createdAt.toDate();
+        const dateStr = `${thoughtDate.getFullYear()}-${String(thoughtDate.getMonth() + 1).padStart(2, '0')}-${String(thoughtDate.getDate()).padStart(2, '0')}`;
+        return filterDates.includes(dateStr);
+      });
+    }
     if (filterSort === "oldest") result.reverse();
     return result;
-  }, [thoughts, filterEmotion, filterSort]);
+  }, [thoughts, filterEmotion, filterDates, filterSort]);
 
   async function handleAuth(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -460,6 +496,9 @@ export default function Home() {
           usedEmotions={usedEmotions}
           activeEmotion={filterEmotion}
           onEmotion={setFilterEmotion}
+          availableDates={availableDates}
+          selectedDates={filterDates}
+          onDatesChange={setFilterDates}
           onClose={() => setIsFilterOpen(false)}
         />
       )}
@@ -656,23 +695,47 @@ function FilterSheet({
   usedEmotions,
   activeEmotion,
   onEmotion,
+  availableDates,
+  selectedDates,
+  onDatesChange,
   onClose,
 }: {
   usedEmotions: string[];
   activeEmotion: string | null;
   onEmotion: (e: string | null) => void;
+  availableDates: string[];
+  selectedDates: string[];
+  onDatesChange: (dates: string[]) => void;
   onClose: () => void;
 }) {
   function pick(emotion: string | null) {
     onEmotion(emotion === activeEmotion ? null : emotion);
-    onClose();
   }
+  
+  function toggleDate(dateStr: string) {
+    if (selectedDates.includes(dateStr)) {
+      onDatesChange(selectedDates.filter(d => d !== dateStr));
+    } else {
+      onDatesChange([...selectedDates, dateStr]);
+    }
+  }
+  
+  function clearDates() {
+    onDatesChange([]);
+  }
+  
+  function formatDate(dateStr: string) {
+    const [year, month, day] = dateStr.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+  }
+  
   return (
     <div className="confirm-overlay" role="dialog" aria-modal="true">
-      <div className="confirm-sheet">
+      <div className="confirm-sheet filter-sheet">
         <button className="confirm-close" type="button" aria-label="Close" onClick={onClose}>×</button>
         <p className="eyebrow">Filter thoughts</p>
-        <h2>How were you feeling?</h2>
+        <h2>What emotion are you looking for?</h2>
         <div className="badge-row">
           <button
             type="button"
@@ -692,6 +755,29 @@ function FilterSheet({
             </button>
           ))}
         </div>
+        
+        {availableDates.length > 0 && (
+          <>
+            <h2 className="filter-section-title">Select dates</h2>
+            <div className="date-filter-grid">
+              {availableDates.map((dateStr) => (
+                <button
+                  key={dateStr}
+                  type="button"
+                  className={`date-badge ${selectedDates.includes(dateStr) ? "is-active" : ""}`}
+                  onClick={() => toggleDate(dateStr)}
+                >
+                  {formatDate(dateStr)}
+                </button>
+              ))}
+            </div>
+            {selectedDates.length > 0 && (
+              <button type="button" className="clear-dates-btn" onClick={clearDates}>
+                Clear dates ({selectedDates.length})
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -709,6 +795,11 @@ function EmptyThought() {
 
 function ReadingScreen({ thought, onBack }: { thought: Thought; onBack: () => void }) {
   const es = emotionStyle[thought.emotion] ?? fallbackEmotionStyle;
+  
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+  
   return (
     <main
       className="core-app reading-screen"
@@ -1027,11 +1118,11 @@ function MonthSelector({
   return (
     <div className="month-selector">
       <button type="button" className="month-arrow" onClick={onPrev} disabled={!onPrev} aria-label="Previous month">
-        ←
+        <LeftArrow />
       </button>
       <h2 className="month-label">{monthName}</h2>
       <button type="button" className="month-arrow" onClick={onNext} disabled={!onNext} aria-label="Next month">
-        →
+        <RightArrow />
       </button>
     </div>
   );
