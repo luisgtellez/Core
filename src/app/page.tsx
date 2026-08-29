@@ -246,6 +246,22 @@ export default function Home() {
     return () => window.clearInterval(interval);
   }, [screen]);
 
+  useEffect(() => {
+    if (screen !== "editor") return;
+    const updateViewportHeight = () => {
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty("--viewport-height", `${vh}px`);
+    };
+    updateViewportHeight();
+    window.visualViewport?.addEventListener("resize", updateViewportHeight);
+    window.visualViewport?.addEventListener("scroll", updateViewportHeight);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", updateViewportHeight);
+      window.visualViewport?.removeEventListener("scroll", updateViewportHeight);
+      document.documentElement.style.removeProperty("--viewport-height");
+    };
+  }, [screen]);
+
   const placesUsed = useMemo(
     () => new Set(thoughts.map((thought) => thought.place)).size,
     [thoughts],

@@ -203,8 +203,7 @@ button { cursor: pointer; background: transparent; border: 0; }
 .editor-screen {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  height: var(--viewport-height, 100dvh);
   overflow: hidden;
   overscroll-behavior: none;
 }
@@ -237,8 +236,9 @@ button { cursor: pointer; background: transparent; border: 0; }
 html:has(.editor-screen),
 body:has(.editor-screen) {
   overflow: hidden;
-  height: 100vh;
-  height: 100dvh;
+  height: var(--viewport-height, 100dvh);
+  position: fixed;
+  width: 100%;
 }
 .editor-toolbar-wrap { display: flex; justify-content: center; }
 .icon-button {
