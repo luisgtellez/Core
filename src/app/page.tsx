@@ -248,17 +248,21 @@ export default function Home() {
 
   useEffect(() => {
     if (screen !== "editor") return;
-    const updateViewportHeight = () => {
-      const vh = window.visualViewport?.height ?? window.innerHeight;
-      document.documentElement.style.setProperty("--viewport-height", `${vh}px`);
+    const vv = window.visualViewport;
+    const update = () => {
+      const height = vv?.height ?? window.innerHeight;
+      const offsetTop = vv?.offsetTop ?? 0;
+      document.documentElement.style.setProperty("--viewport-height", `${height}px`);
+      document.documentElement.style.setProperty("--viewport-offset", `${offsetTop}px`);
     };
-    updateViewportHeight();
-    window.visualViewport?.addEventListener("resize", updateViewportHeight);
-    window.visualViewport?.addEventListener("scroll", updateViewportHeight);
+    update();
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
     return () => {
-      window.visualViewport?.removeEventListener("resize", updateViewportHeight);
-      window.visualViewport?.removeEventListener("scroll", updateViewportHeight);
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
       document.documentElement.style.removeProperty("--viewport-height");
+      document.documentElement.style.removeProperty("--viewport-offset");
     };
   }, [screen]);
 
