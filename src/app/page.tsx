@@ -154,6 +154,7 @@ export default function Home() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const thoughtTrackRef = useRef<HTMLDivElement>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [trackReturnScreen, setTrackReturnScreen] = useState<"home" | "editor">("home");
 
   useEffect(() => onAuthStateChanged(auth, (currentUser) => {
     setUser(currentUser);
@@ -342,7 +343,10 @@ export default function Home() {
 
   function openEditor() {
     setIsOpeningEditor(true);
-    window.setTimeout(() => setScreen("editor"), 420);
+    window.setTimeout(() => {
+      setIsOpeningEditor(false);
+      setScreen("editor");
+    }, 420);
   }
 
   function openThought(thought: Thought) {
@@ -355,6 +359,17 @@ export default function Home() {
     setIsOpeningEditor(false);
     setIsConfirming(false);
     setScreen("home");
+  }
+
+  function openTrack() {
+    setIsOpeningEditor(false);
+    setIsConfirming(false);
+    setTrackReturnScreen(screen === "editor" ? "editor" : "home");
+    setScreen("track");
+  }
+
+  function returnFromTrack() {
+    setScreen(trackReturnScreen);
   }
 
   if (authLoading) return <div className="core-loading">Loading Core...</div>;
@@ -395,14 +410,14 @@ export default function Home() {
         thoughts={thoughts}
         selectedMonth={selectedMonth}
         onMonthChange={setSelectedMonth}
-        onBack={() => setScreen("home")}
+        onBack={returnFromTrack}
       />
     );
 
   if (screen === "editor")
     return (
       <main className="core-app editor-screen">
-        <Header screen={screen} onHome={backToHome} onTrack={() => setScreen("track")} />
+        <Header screen={screen} onHome={backToHome} onTrack={openTrack} />
         <section className="editor-layout">
           <RichEditorProvider
             key={editorVersion}
@@ -458,7 +473,7 @@ export default function Home() {
     <main
       className={`core-app home-screen ${isOpeningEditor ? "is-opening-editor" : ""}`}
     >
-      <Header screen={screen} onHome={backToHome} onTrack={() => setScreen("track")} />
+      <Header screen={screen} onHome={backToHome} onTrack={openTrack} />
       <section className="home-hero" onClick={openEditor}>
         <p className="date-label">{today}</p>
         <div className="hero-question-wrap">
